@@ -206,23 +206,29 @@ typedef uint64_t(*BlLdrLoadImage_t)(
 
 
 STATIC
-void __fastcall Hooked_hv_launch(
+VOID __fastcall Hooked_hv_launch(
     int64_t hyperv_cr3,
     int64_t hyperv_entry_point,
     int64_t entry_point_gadget,
     uint64_t guest_kernel_cr3
 )
 {
-// TODO
-// SCAN THE hyperV cr3 for non present pml4 page
-// CREATE and inject our image pml4 into it
-// HOOK VMEXIT HANDLER
+    hv_launch_t Original = (hv_launch_t)hv_launch_addr;
+
     remove_hook(hv_launch_addr, backup_hv_launch);
-    hv_launch_t hv_launch = (hv_launch_t)hv_launch_addr;
-    hv_launch(hyperv_cr3, hyperv_entry_point, entry_point_gadget, guest_kernel_cr3);
 
+    // TODO: Scan Hyper-V CR3
+    // TODO: Find non-present PML4 entry
+    // TODO: Inject image mapping
+    // TODO: Modify VM-exit handling
+
+    hv_launch(
+        hyperv_cr3,
+        hyperv_entry_point,
+        entry_point_gadget,
+        guest_kernel_cr3
+    );
 }
-
 
 
 
