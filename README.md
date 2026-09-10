@@ -32,4 +32,4 @@ By changing it. You can have Software inside HyperV without any kernel driver ev
 7. Inject a PML4 into `HyperV cr3` , to map our driver inside  `HyperV Root Partition`
 8. Hook `HyperV VmexitHandler `
 9. On first VmExit: Inject the `EPT/NPT`, to hide our Image from `Windows Guest Memory`
-10. Config `CPUID` backdoor as hypercall. OFC make timming the same
+10. Config `CPUID` backdoor as `HYPERCALL`. OFC make timming the same
