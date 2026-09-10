@@ -213,7 +213,7 @@ VOID __fastcall Hooked_hv_launch(
     uint64_t guest_kernel_cr3
 )
 {
-    hv_launch_t Original = (hv_launch_t)hv_launch_addr;
+    hv_launch_t hv_launch = (hv_launch_t)hv_launch_addr;
 
     remove_hook(hv_launch_addr, backup_hv_launch);
 
