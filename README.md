@@ -1,4 +1,4 @@
-# HyperRev-dxe
+# HyperV-DXE
 # This is not a fully working, but just an example how you access hv_launch with hooks.
 By accessing hv_lauch from dxe driver, you can potentially, change the hypervisor setup, without detection from AC.
 
@@ -13,8 +13,6 @@ By changing it. You can have Software inside HyperV without any kernel driver ev
 
 
 
-
-# HyperV-DXE
 
 ## Features
 
