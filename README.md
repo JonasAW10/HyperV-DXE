@@ -19,7 +19,7 @@ By changing it. You can have Software inside HyperV without any kernel driver ev
 ## Features
 
 1. Relocate dxe image into `EfiRuntimeServicesCode` Bypass  `ExitBootServices memory terminal`
-2. Hook `gBS->LoadImage` our dxe driver will get notificed then windows is booting:  `e`
+2. Hook `gBS->LoadImage` our dxe driver will get notificed then windows is booting:  `\EFI\Microsoft\Boot\bootmgfw.efi`
 3. Hook `bootmgfw!ImgArchStartBootApplication`
 4. Hook `winload!BlLdrLoadImage`
 5. Receive `hvloader.dll` base and `hv.exe` base
