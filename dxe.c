@@ -11,11 +11,6 @@
 
 #define HOOK_SIZE 12
 
-
-
-
-
-
 typedef uint32_t ULONG;
 typedef uint16_t USHORT;
 typedef struct _UNICODE_STRING
@@ -51,7 +46,6 @@ typedef void(__fastcall* hv_launch_t)(
     );
 
 
-
 typedef uint64_t(*BlLdrLoadImage_t)(
     int32_t  arg1,
     CHAR16* ModulePath,
@@ -73,7 +67,6 @@ typedef uint64_t(*BlLdrLoadImage_t)(
     );
 
 
-
 typedef EFI_STATUS(EFIAPI* ImgArchStartBootApplication_t)(
     VOID* AppEntry,
     VOID* ImageBase,
@@ -83,13 +76,10 @@ typedef EFI_STATUS(EFIAPI* ImgArchStartBootApplication_t)(
     );
 
 
-
 typedef EFI_STATUS(EFIAPI* IMAGE_CALLBACK)(
     EFI_HANDLE ImageHandle,
     EFI_SYSTEM_TABLE* SystemTable
     );
-
-
 
 
 // Update the signature
@@ -127,7 +117,6 @@ EFI_IMAGE_LOAD OrgLoadImage;
 STATIC BOOLEAN g_WP;
 
 
-
 STATIC
 void DisableWriteProtect(void)
 {
@@ -154,8 +143,6 @@ void remove_hook(void* target, UINT8 backup[12]) {
     }
     RestoreWriteProtect();
 }
-
-
 
 void hook_jmp64_indirect(void* target, void* hook, uint8_t backup[12])
 {
