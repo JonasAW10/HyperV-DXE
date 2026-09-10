@@ -112,7 +112,8 @@ static const char* ImgArchStartBootApplication_signature =
 "68 a9 48 81 ec c0 00 00";
 
 
-EFI_PHYSICAL_ADDRESS Relocated_DxeBase;
+EFI_PHYSICAL_ADDRESS g_relocated_DxeBase;
+UINTN g_ImageSize;
 
 
 VOID* hv_launch_addr = NULL;
@@ -470,30 +471,32 @@ ConvertImageMemoryType(
     );
 
 
-    UINTN DxeImageSize;
     VOID* ImageBase = LoadedImage->ImageBase;
     UINTN ImageSize = LoadedImage->ImageSize;
-    DxeImageSize = ImageSize;
+    g_ImageSize = ImageSize;
     UINTN Pages = EFI_SIZE_TO_PAGES(ImageSize);
-    Relocated_DxeBase;
+    EFI_PHYSICAL_ADDRESS NewBase;
 
     gBS->AllocatePages(
         Type,
         MemoryType,
         Pages,
-        &Relocated_DxeBase
+        &NewBase
     );
 
 
+    g_relocated_DxeBase = NewBase;
+
+
     gBS->CopyMem(
-        (VOID*)(UINTN)Relocated_DxeBase,
+        (VOID*)(UINTN)NewBase,
         ImageBase,
         ImageSize
     );
 
     UINTN Offset = (UINT8*)Callback - (UINT8*)ImageBase;
     IMAGE_CALLBACK NewCallback =
-        (IMAGE_CALLBACK)((UINT8*)(UINTN)Relocated_DxeBase + Offset);
+        (IMAGE_CALLBACK)((UINT8*)(UINTN)NewBase + Offset);
 
     NewCallback(ImageHandle, gST);
 
