@@ -204,7 +204,9 @@ void __fastcall Hooked_hv_launch(
 )
 {
 
-
+// SCAN THE hyperV cr3 for non present pml4 page
+// CREATE and inject our image pml4 into it
+// HOOK VMEXIT HANDLER
     remove_hook(hv_launch_addr, backup_hv_launch);
     hv_launch_t hv_launch = (hv_launch_t)hv_launch_addr;
     hv_launch(hyperv_cr3, hyperv_entry_point, entry_point_gadget, guest_kernel_cr3);
