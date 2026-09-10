@@ -278,7 +278,6 @@ VOID __fastcall Hooked_hv_launch(
 STATIC
 UINT64
 HookedBlLdrLoadImage(
-    int32_t  arg1,
     CHAR16* ModulePath,
     CHAR16* ModuleName,
     void* arg4,
@@ -476,10 +475,10 @@ HookedLoadImage(
 EFI_STATUS
 EFIAPI
 ConvertImageMemoryType(
-    EFI_ALLOCATE_TYPE Type,
-    EFI_MEMORY_TYPE MemoryType,
-    IMAGE_CALLBACK Callback,
-    EFI_HANDLE ImageHandle
+    IN EFI_ALLOCATE_TYPE Type,
+    IN EFI_MEMORY_TYPE MemoryType,
+    IN IMAGE_CALLBACK Callback,
+    IN EFI_HANDLE ImageHandle
 )
 {
     EFI_LOADED_IMAGE_PROTOCOL* LoadedImage;
