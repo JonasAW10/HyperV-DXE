@@ -438,7 +438,7 @@ HookedLoadImage(
             uintptr_t start = (uintptr_t)LoadedImage->ImageBase;
             uintptr_t end = start + LoadedImage->ImageSize;
             ImgArchStartBootApplication_addr = signature_scan(start, end,
-    ½       ImgArchStartBootApplication_signature);
+            ImgArchStartBootApplication_signature);
 
             if (ImgArchStartBootApplication_addr) {
                 hook_jmp64_indirect((void*)ImgArchStartBootApplication_addr, (void*)HookedImgArchStartBootApplication, backup_ImgArchStartBootApplication);
