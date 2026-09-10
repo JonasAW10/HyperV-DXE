@@ -16,6 +16,25 @@
 EFI_PHYSICAL_ADDRESS Relocated_DxeBase;
 
 
+
+
+const char* hv_launch_signature = "48 53 55 56 57 41 54 41 55 41 56 41 57 48 83 ec 08 48 89 25";
+
+const char* BlLdrLoadImage_signature =
+        "48 8b c4 48 89 58 08 48"
+        "89 70 10 48 89 78 18 55"
+        "48 8d 68 f1 48 81 ec c0"
+        "00 00 00 8b f1 c6 45 d7"
+        "00 49 8b c1 48 8d 4d d7";
+
+
+const char* ImgArchStartBootApplication_signature =
+                "48 8b c4 48 89 58 20 44 89 40 18 48 89 50 10 48"
+                "89 48 08 55 56 57 41 54 41 55 41 56 41 57 48 8d"
+                "68 a9 48 81 ec c0 00 00";
+
+
+
 typedef uint32_t ULONG;
 typedef uint16_t USHORT;
 typedef struct _UNICODE_STRING
@@ -292,7 +311,7 @@ HookedBlLdrLoadImage(
             hv_launch_addr = signature_scan(
                 start,
                 end,
-                "48 53 55 56 57 41 54 41 55 41 56 41 57 48 83 ec 08 48 89 25"
+                hv_launch_signature
             );
 
 
@@ -354,11 +373,7 @@ HookedImgArchStartBootApplication(
     uintptr_t start = (uintptr_t)ImageBase;
     uintptr_t end = (uintptr_t)ImageBase + ImageSize;
     BlLdrLoadImage_addr = signature_scan(start, end,
-        "48 8b c4 48 89 58 08 48"
-        "89 70 10 48 89 78 18 55"
-        "48 8d 68 f1 48 81 ec c0"
-        "00 00 00 8b f1 c6 45 d7"
-        "00 49 8b c1 48 8d 4d d7");
+    BlLdrLoadImage_signature);
 
 
     if (BlLdrLoadImage_addr) {
@@ -426,9 +441,7 @@ HookedLoadImage(
             uintptr_t start = (uintptr_t)LoadedImage->ImageBase;
             uintptr_t end = start + LoadedImage->ImageSize;
             ImgArchStartBootApplication_addr = signature_scan(start, end,
-                "48 8b c4 48 89 58 20 44 89 40 18 48 89 50 10 48"
-                "89 48 08 55 56 57 41 54 41 55 41 56 41 57 48 8d"
-                "68 a9 48 81 ec c0 00 00");
+    ½       ImgArchStartBootApplication_signature);
 
             if (ImgArchStartBootApplication_addr) {
                 hook_jmp64_indirect((void*)ImgArchStartBootApplication_addr, (void*)HookedImgArchStartBootApplication, backup_ImgArchStartBootApplication);
