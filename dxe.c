@@ -124,7 +124,7 @@ UINT8 backup_ImgArchStartBootApplication[HOOK_SIZE];
 UINT8 backup_BlLdrLoadImage[HOOK_SIZE];
 UINT8 backup_hv_launch[HOOK_SIZE];
 EFI_IMAGE_LOAD OrgLoadImage;
-STATIC BOOLEAN g_WriteProtectWasEnabled;
+STATIC BOOLEAN g_WP;
 
 
 
@@ -133,16 +133,16 @@ void DisableWriteProtect(void)
 {
     UINT64 Cr0 = AsmReadCr0();
 
-    g_WriteProtectWasEnabled = (Cr0 & BIT16) != 0;
+    g_WP = (Cr0 & BIT16) != 0;
 
-    if (g_WriteProtectWasEnabled)
+    if (g_WP)
         AsmWriteCr0(Cr0 & ~BIT16);
 }
 
 STATIC
 void RestoreWriteProtect(void)
 {
-    if (g_WriteProtectWasEnabled)
+    if (g_WP)
         AsmWriteCr0(AsmReadCr0() | BIT16);
 }
 
