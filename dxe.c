@@ -12,10 +12,6 @@
 #define HOOK_SIZE 12
 
 
-
-EFI_PHYSICAL_ADDRESS Relocated_DxeBase;
-
-
 // Update the signature
 
 // C:\windows\system32\hvloader.dll
@@ -36,7 +32,7 @@ static const char* ImgArchStartBootApplication_signature =
   "68 a9 48 81 ec c0 00 00";
 
 
-
+EFI_PHYSICAL_ADDRESS Relocated_DxeBase;
 
 
 VOID* hv_launch_addr = NULL;
