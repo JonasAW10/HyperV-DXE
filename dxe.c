@@ -12,36 +12,9 @@
 #define HOOK_SIZE 12
 
 
-// Update the signature
-
-// C:\windows\system32\hvloader.dll
-static const char* hv_launch_signature = "48 53 55 56 57 41 54 41 55 41 56 41 57 48 83 ec 08 48 89 25";
-
-// C:\windows\system32\winload.efi
-static const char* BlLdrLoadImage_signature =
-        "48 8b c4 48 89 58 08 48"
-        "89 70 10 48 89 78 18 55"
-        "48 8d 68 f1 48 81 ec c0"
-        "00 00 00 8b f1 c6 45 d7"
-        "00 49 8b c1 48 8d 4d d7";
-
-// SYSTEM partition: \EFI\Microsoft\Boot\bootmgfw.efi
-static const char* ImgArchStartBootApplication_signature =
-  "48 8b c4 48 89 58 20 44 89 40 18 48 89 50 10 48"
-  "89 48 08 55 56 57 41 54 41 55 41 56 41 57 48 8d"
-  "68 a9 48 81 ec c0 00 00";
 
 
-EFI_PHYSICAL_ADDRESS Relocated_DxeBase;
 
-
-VOID* hv_launch_addr = NULL;
-VOID* ImgArchStartBootApplication_addr = NULL;
-VOID* BlLdrLoadImage_addr = NULL;
-
-UINT8 backup_ImgArchStartBootApplication[HOOK_SIZE];
-UINT8 backup_BlLdrLoadImage[HOOK_SIZE];
-UINT8 backup_hv_launch[HOOK_SIZE];
 
 typedef uint32_t ULONG;
 typedef uint16_t USHORT;
@@ -69,6 +42,92 @@ typedef struct _KLDR_DATA_TABLE_ENTRY
 } KLDR_DATA_TABLE_ENTRY, * PKLDR_DATA_TABLE_ENTRY;
 
 typedef PKLDR_DATA_TABLE_ENTRY* PPKLDR_DATA_TABLE_ENTRY;
+
+typedef void(__fastcall* hv_launch_t)(
+    int64_t hyperv_cr3,
+    int64_t hyperv_entry_point,
+    int64_t entry_point_gadget,
+    uint64_t guest_kernel_cr3
+    );
+
+
+
+typedef uint64_t(*BlLdrLoadImage_t)(
+    int32_t  arg1,
+    CHAR16* ModulePath,
+    CHAR16* ModuleName,
+    void* arg4,
+    int64_t  arg5,
+    int32_t  arg6,
+    int32_t  arg7,
+    LIST_ENTRY* arg8,
+    PPKLDR_DATA_TABLE_ENTRY  arg9,
+    int64_t  arg10,
+    int32_t  arg11,
+    int32_t  arg12,
+    int32_t  arg13,
+    int32_t  arg14,
+    int32_t  arg15,
+    int64_t  arg16,
+    int64_t  arg17
+    );
+
+
+
+typedef EFI_STATUS(EFIAPI* ImgArchStartBootApplication_t)(
+    VOID* AppEntry,
+    VOID* ImageBase,
+    UINTN ImageSize,
+    UINT32 BootOption,
+    VOID* ReturnArgs
+    );
+
+
+
+typedef EFI_STATUS(EFIAPI* IMAGE_CALLBACK)(
+    EFI_HANDLE ImageHandle,
+    EFI_SYSTEM_TABLE* SystemTable
+    );
+
+
+
+
+// Update the signature
+
+// C:\windows\system32\hvloader.dll
+static const char* hv_launch_signature = "48 53 55 56 57 41 54 41 55 41 56 41 57 48 83 ec 08 48 89 25";
+
+// C:\windows\system32\winload.efi
+static const char* BlLdrLoadImage_signature =
+"48 8b c4 48 89 58 08 48"
+"89 70 10 48 89 78 18 55"
+"48 8d 68 f1 48 81 ec c0"
+"00 00 00 8b f1 c6 45 d7"
+"00 49 8b c1 48 8d 4d d7";
+
+// SYSTEM partition: \EFI\Microsoft\Boot\bootmgfw.efi
+static const char* ImgArchStartBootApplication_signature =
+"48 8b c4 48 89 58 20 44 89 40 18 48 89 50 10 48"
+"89 48 08 55 56 57 41 54 41 55 41 56 41 57 48 8d"
+"68 a9 48 81 ec c0 00 00";
+
+
+EFI_PHYSICAL_ADDRESS Relocated_DxeBase;
+
+
+VOID* hv_launch_addr = NULL;
+VOID* ImgArchStartBootApplication_addr = NULL;
+VOID* BlLdrLoadImage_addr = NULL;
+
+UINT8 backup_ImgArchStartBootApplication[HOOK_SIZE];
+UINT8 backup_BlLdrLoadImage[HOOK_SIZE];
+UINT8 backup_hv_launch[HOOK_SIZE];
+EFI_IMAGE_LOAD OrgLoadImage;
+
+
+
+
+
 
 void remove_hook(void* target, UINT8 backup[12]) {
     UINT8* dst = (UINT8*)target;
@@ -167,44 +226,6 @@ void* signature_scan(uintptr_t start, uintptr_t end, const char* pattern)
 
 
 
-
-
-
-
-
-
-
-typedef void(__fastcall* hv_launch_t)(
-    int64_t hyperv_cr3,
-    int64_t hyperv_entry_point,
-    int64_t entry_point_gadget,
-    uint64_t guest_kernel_cr3
-    );
-
-
-
-typedef uint64_t(*BlLdrLoadImage_t)(
-    int32_t  arg1,
-    CHAR16* ModulePath,
-    CHAR16* ModuleName,
-    void* arg4,
-    int64_t  arg5,
-    int32_t  arg6,
-    int32_t  arg7,
-    LIST_ENTRY* arg8,
-    PPKLDR_DATA_TABLE_ENTRY  arg9,
-    int64_t  arg10,
-    int32_t  arg11,
-    int32_t  arg12,
-    int32_t  arg13,
-    int32_t  arg14,
-    int32_t  arg15,
-    int64_t  arg16,
-    int64_t  arg17
-    );
-
-
-
 STATIC
 VOID __fastcall Hooked_hv_launch(
     int64_t hyperv_cr3,
@@ -233,7 +254,6 @@ VOID __fastcall Hooked_hv_launch(
 
 
 
-
 STATIC
 UINT64
 HookedBlLdrLoadImage(
@@ -257,16 +277,9 @@ HookedBlLdrLoadImage(
 )
 {
 
-
-
-
-
-
-
     remove_hook(BlLdrLoadImage_addr, backup_BlLdrLoadImage);
     BlLdrLoadImage_t BlLdrLoadImage = (BlLdrLoadImage_t)BlLdrLoadImage_addr;
     EFI_STATUS Status =
-
         BlLdrLoadImage(
             arg1,
             ModulePath,
@@ -285,15 +298,11 @@ HookedBlLdrLoadImage(
             arg15,
             arg16,
             arg17
-
         );
-
-
 
     if (arg9)
     {
-        
-            PKLDR_DATA_TABLE_ENTRY TableEntry =
+        PKLDR_DATA_TABLE_ENTRY TableEntry =
             *(PKLDR_DATA_TABLE_ENTRY*)arg9;
 
         if (TableEntry &&
@@ -302,39 +311,17 @@ HookedBlLdrLoadImage(
         {
             uintptr_t start = (uintptr_t)TableEntry->DllBase;
             uintptr_t end = start + TableEntry->SizeOfImage;
-
-
-
             hv_launch_addr = signature_scan(
                 start,
                 end,
                 hv_launch_signature
             );
 
-
-
-
-
-
-
             if (hv_launch_addr) {
-
-
                 hook_jmp64_indirect((void*)hv_launch_addr, (void*)Hooked_hv_launch, backup_hv_launch);
             }
         }
-
-
-
-
-
-
-
-
     }
-
-
-
     hook_jmp64_indirect((void*)BlLdrLoadImage_addr, (void*)HookedBlLdrLoadImage, backup_BlLdrLoadImage);
     return Status;
 
@@ -343,14 +330,6 @@ HookedBlLdrLoadImage(
 
 
 
-
-typedef EFI_STATUS(EFIAPI* ImgArchStartBootApplication_t)(
-    VOID* AppEntry,
-    VOID* ImageBase,
-    UINTN ImageSize,
-    UINT32 BootOption,
-    VOID* ReturnArgs
-    );
 
 
 STATIC
@@ -369,8 +348,7 @@ HookedImgArchStartBootApplication(
 
     uintptr_t start = (uintptr_t)ImageBase;
     uintptr_t end = (uintptr_t)ImageBase + ImageSize;
-    BlLdrLoadImage_addr = signature_scan(start, end,
-    BlLdrLoadImage_signature);
+    BlLdrLoadImage_addr = signature_scan(start, end, BlLdrLoadImage_signature);
 
 
     if (BlLdrLoadImage_addr) {
@@ -395,9 +373,6 @@ HookedImgArchStartBootApplication(
 
 
 
-
-
-EFI_IMAGE_LOAD OrgLoadImage;
 
 EFI_STATUS
 EFIAPI
@@ -438,7 +413,7 @@ HookedLoadImage(
             uintptr_t start = (uintptr_t)LoadedImage->ImageBase;
             uintptr_t end = start + LoadedImage->ImageSize;
             ImgArchStartBootApplication_addr = signature_scan(start, end,
-            ImgArchStartBootApplication_signature);
+                    ImgArchStartBootApplication_signature);
 
             if (ImgArchStartBootApplication_addr) {
                 hook_jmp64_indirect((void*)ImgArchStartBootApplication_addr, (void*)HookedImgArchStartBootApplication, backup_ImgArchStartBootApplication);
@@ -473,13 +448,6 @@ HookedLoadImage(
     return Status;
 }
 
-
-
-
-typedef EFI_STATUS(EFIAPI* IMAGE_CALLBACK)(
-    EFI_HANDLE ImageHandle,
-    EFI_SYSTEM_TABLE* SystemTable
-    );
 
 
 
