@@ -9,7 +9,7 @@
 #include <Register/Intel/Msr.h>
 #include <Library/BaseMemoryLib.h>
 
-
+#define HOOK_SIZE 12
 
 
 
@@ -37,6 +37,16 @@ static const char* ImgArchStartBootApplication_signature =
 
 
 
+
+
+VOID* hv_launch_addr = NULL;
+VOID* ImgArchStartBootApplication_addr = NULL;
+VOID* BlLdrLoadImage_addr = NULL;
+
+UINT8 backup_ImgArchStartBootApplication[HOOK_SIZE];
+UINT8 backup_BlLdrLoadImage[HOOK_SIZE];
+UINT8 backup_hv_launch[HOOK_SIZE];
+
 typedef uint32_t ULONG;
 typedef uint16_t USHORT;
 typedef struct _UNICODE_STRING
@@ -63,14 +73,6 @@ typedef struct _KLDR_DATA_TABLE_ENTRY
 } KLDR_DATA_TABLE_ENTRY, * PKLDR_DATA_TABLE_ENTRY;
 
 typedef PKLDR_DATA_TABLE_ENTRY* PPKLDR_DATA_TABLE_ENTRY;
-
-
-typedef void (*start_t)(void);
-
-void* hv_entrypoint_addr = NULL;
-UINT8 backup_hv_entrypoint[12];
-
-
 
 void remove_hook(void* target, UINT8 backup[12]) {
     UINT8* dst = (UINT8*)target;
@@ -171,7 +173,6 @@ void* signature_scan(uintptr_t start, uintptr_t end, const char* pattern)
 
 
 
-void* hv_launch_addr = NULL;
 
 
 
@@ -185,14 +186,6 @@ typedef void(__fastcall* hv_launch_t)(
     );
 
 
-
-void* ImgArchStartBootApplication_addr = NULL;
-UINT8 backup_ImgArchStartBootApplication[12];
-
-
-void* BlLdrLoadImage_addr = NULL;
-UINT8 backup_BlLdrLoadImage[12];
-UINT8 backup_hv_launch[12];
 
 typedef uint64_t(*BlLdrLoadImage_t)(
     int32_t  arg1,
