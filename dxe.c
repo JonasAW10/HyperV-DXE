@@ -19,10 +19,10 @@ EFI_PHYSICAL_ADDRESS Relocated_DxeBase;
 // Update the signature
 
 // C:\windows\system32\hvloader.dll
-const char* hv_launch_signature = "48 53 55 56 57 41 54 41 55 41 56 41 57 48 83 ec 08 48 89 25";
+static const char* hv_launch_signature = "48 53 55 56 57 41 54 41 55 41 56 41 57 48 83 ec 08 48 89 25";
 
 // C:\windows\system32\winload.efi
-const char* BlLdrLoadImage_signature =
+static const char* BlLdrLoadImage_signature =
         "48 8b c4 48 89 58 08 48"
         "89 70 10 48 89 78 18 55"
         "48 8d 68 f1 48 81 ec c0"
@@ -30,7 +30,7 @@ const char* BlLdrLoadImage_signature =
         "00 49 8b c1 48 8d 4d d7";
 
 // SYSTEM partition: \EFI\Microsoft\Boot\bootmgfw.efi
-const char* ImgArchStartBootApplication_signature =
+static const char* ImgArchStartBootApplication_signature =
   "48 8b c4 48 89 58 20 44 89 40 18 48 89 50 10 48"
   "89 48 08 55 56 57 41 54 41 55 41 56 41 57 48 8d"
   "68 a9 48 81 ec c0 00 00";
