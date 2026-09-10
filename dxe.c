@@ -124,23 +124,42 @@ UINT8 backup_ImgArchStartBootApplication[HOOK_SIZE];
 UINT8 backup_BlLdrLoadImage[HOOK_SIZE];
 UINT8 backup_hv_launch[HOOK_SIZE];
 EFI_IMAGE_LOAD OrgLoadImage;
+STATIC BOOLEAN g_WriteProtectWasEnabled;
 
 
 
+STATIC
+void DisableWriteProtect(void)
+{
+    UINT64 Cr0 = AsmReadCr0();
 
+    g_WriteProtectWasEnabled = (Cr0 & BIT16) != 0;
 
+    if (g_WriteProtectWasEnabled)
+        AsmWriteCr0(Cr0 & ~BIT16);
+}
+
+STATIC
+void RestoreWriteProtect(void)
+{
+    if (g_WriteProtectWasEnabled)
+        AsmWriteCr0(AsmReadCr0() | BIT16);
+}
 
 void remove_hook(void* target, UINT8 backup[12]) {
+    DisableWriteProtect();
     UINT8* dst = (UINT8*)target;
     for (int i = 0; i < 12; i++) {
         dst[i] = backup[i];
     }
+    RestoreWriteProtect();
 }
 
 
 
 void hook_jmp64_indirect(void* target, void* hook, uint8_t backup[12])
 {
+    DisableWriteProtect();
     uint8_t* src = target;
     uint8_t code[12] = {
         0x48, 0xb8,
@@ -157,6 +176,7 @@ void hook_jmp64_indirect(void* target, void* hook, uint8_t backup[12])
 
     for (int i = 0; i < 12; i++)
         src[i] = code[i];
+    RestoreWriteProtect();
 }
 
 
