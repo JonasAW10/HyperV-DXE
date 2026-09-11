@@ -470,7 +470,8 @@ ConvertImageMemoryType(
 )
 {
     EFI_LOADED_IMAGE_PROTOCOL* LoadedImage;
-
+    EFI_STATUS status;
+    
     gBS->HandleProtocol(
         ImageHandle,
         &gEfiLoadedImageProtocolGuid,
@@ -484,14 +485,15 @@ ConvertImageMemoryType(
     UINTN Pages = EFI_SIZE_TO_PAGES(ImageSize);
     EFI_PHYSICAL_ADDRESS NewBase;
 
-    gBS->AllocatePages(
-        Type,
-        MemoryType,
-        Pages,
-        &NewBase
-    );
+    status = gBS->AllocatePages(
+    Type,
+    MemoryType,
+    Pages,
+    &NewBase
+);
 
-
+if (EFI_ERROR(status))
+    return status;
     g_relocated_DxeBase = NewBase;
 
 
@@ -505,9 +507,9 @@ ConvertImageMemoryType(
     IMAGE_CALLBACK NewCallback =
         (IMAGE_CALLBACK)((UINT8*)(UINTN)NewBase + Offset);
 
-    NewCallback(ImageHandle, gST);
+    status = NewCallback(ImageHandle, gST);
 
-    return EFI_SUCCESS;
+    return status;
 }
 
 
@@ -536,18 +538,17 @@ DxeEntryPoint(
 )
 {
 
-
+    if (ImageHandle == NULL || SystemTable == NULL)
+        return EFI_INVALID_PARAMETER;
 
     // Relocate Our Image in runtime memory
 
-    ConvertImageMemoryType(
+    EFI_STATUS Status = ConvertImageMemoryType(
         AllocateAnyPages,
         EfiRuntimeServicesCode,
         callback,
         ImageHandle
     );
 
-
-
-    return EFI_SUCCESS;
+    return Status;
 }
