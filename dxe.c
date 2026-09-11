@@ -265,6 +265,7 @@ VOID __fastcall Hooked_hv_launch(
 STATIC
 UINT64
 HookedBlLdrLoadImage(
+    int32_t  arg1,
     CHAR16* ModulePath,
     CHAR16* ModuleName,
     void* arg4,
