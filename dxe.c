@@ -114,6 +114,7 @@ UINT8 backup_ImgArchStartBootApplication[HOOK_SIZE];
 UINT8 backup_BlLdrLoadImage[HOOK_SIZE];
 UINT8 backup_hv_launch[HOOK_SIZE];
 EFI_IMAGE_LOAD OrgLoadImage;
+EFI_EXIT_BOOT_SERVICES OrgExitBootServices;
 STATIC BOOLEAN g_WP;
 
 
@@ -352,25 +353,12 @@ HookedImgArchStartBootApplication(
 )
 {
 
-
-
     uintptr_t start = (uintptr_t)ImageBase;
     uintptr_t end = (uintptr_t)ImageBase + ImageSize;
     BlLdrLoadImage_addr = signature_scan(start, end, BlLdrLoadImage_signature);
 
-
     if (BlLdrLoadImage_addr) {
-        gST->ConOut->SetAttribute(gST->ConOut, EFI_RED);
-        Print(L"winload!BlLdrLoadImage: 0x%p\r\n", BlLdrLoadImage_addr);
-        Print(L"hooking winload!BlLdrLoadImage --> HookedBlLdrLoadImage: 0x%p\r\n", HookedBlLdrLoadImage);
         hook_jmp64_indirect((void*)BlLdrLoadImage_addr, (void*)HookedBlLdrLoadImage, backup_BlLdrLoadImage);
-
-    }
-
-    else {
-
-        Print(L"Signature out of dated\\n");
-
     }
 
     remove_hook(ImgArchStartBootApplication_addr, backup_ImgArchStartBootApplication);
@@ -421,32 +409,10 @@ HookedLoadImage(
             uintptr_t start = (uintptr_t)LoadedImage->ImageBase;
             uintptr_t end = start + LoadedImage->ImageSize;
             ImgArchStartBootApplication_addr = signature_scan(start, end,
-                    ImgArchStartBootApplication_signature);
+                ImgArchStartBootApplication_signature);
 
             if (ImgArchStartBootApplication_addr) {
                 hook_jmp64_indirect((void*)ImgArchStartBootApplication_addr, (void*)HookedImgArchStartBootApplication, backup_ImgArchStartBootApplication);
-                gST->ConOut->SetAttribute(gST->ConOut, EFI_RED);
-                Print(L"\r\n\r\n");
-                Print(L"========================================\r\n");
-                Print(L"          Windows loading...\r\n");
-                Print(L"========================================\r\n");
-                Print(L"\r\n");
-                Print(L"bootmgfw.efi detected\r\n");
-                Print(L"Image Base: 0x%p\r\n", LoadedImage->ImageBase);
-                Print(L"bootmgfw!ImgArchStartBootApplication: 0x%p\r\n", ImgArchStartBootApplication_addr);
-                Print(L"hooking bootmgfw!ImgArchStartBootApplication --> HookedImgArchStartBootApplication: 0x%p\r\n", HookedImgArchStartBootApplication);
-                Print(L" \r\n");
-                gST->ConOut->SetAttribute(gST->ConOut, EFI_GREEN);
-                Print(L"LarpVisor is running\r\n");
-                Print(L"Press any key to continue ...\r\n");
-                Print(L"\r\n");
-                gST->ConOut->SetAttribute(gST->ConOut, EFI_LIGHTGRAY);
-            }
-
-
-            else {
-
-                Print(L"Signature out of dated\\n");
             }
         }
         gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
@@ -457,6 +423,60 @@ HookedLoadImage(
 }
 
 
+
+EFI_STATUS
+EFIAPI
+HookedExitBootServices(EFI_HANDLE ImageHandle, UINTN MapKey) {
+
+    gBS->ExitBootServices = OrgExitBootServices;
+
+    Print(L"\r\n\r\n");
+    Print(L"========================================\r\n");
+    Print(L"          Windows loading...\r\n");
+    Print(L"========================================\r\n");
+    Print(L"\r\n");
+    if(ImgArchStartBootApplication_addr){
+        Print(L"bootmgfw!ImgArchStartBootApplication: 0x%p\r\n", ImgArchStartBootApplication_addr);
+        Print(L"hooking bootmgfw!ImgArchStartBootApplication --> HookedImgArchStartBootApplication: 0x%p\r\n", HookedImgArchStartBootApplication);
+    }
+    else{
+        gST->ConOut->SetAttribute(gST->ConOut, EFI_RED);
+        Print(L"bootmgfw!ImgArchStartBootApplication Signature out of dated\\n");
+        return gBS->ExitBootServices(ImageHandle, MapKey);
+    }
+
+    if (BlLdrLoadImage_addr) {
+        Print(L"winload!BlLdrLoadImage: 0x%p\r\n", BlLdrLoadImage_addr);
+        Print(L"hooking winload!BlLdrLoadImage --> HookedBlLdrLoadImage: 0x%p\r\n", HookedBlLdrLoadImage);
+    }
+    else {
+
+        gST->ConOut->SetAttribute(gST->ConOut, EFI_RED);
+        Print(L"winload!BlLdrLoadImage Signature out of dated\\n");
+        return gBS->ExitBootServices(ImageHandle, MapKey);
+
+    }
+
+
+
+    if (hv_launch_addr) {
+
+
+        Print(L"hvloader!hv_launch: 0x%p\r\n", hv_launch_addr);
+        Print(L"hooking hvloader!hv_launch --> Hooked_hv_launch: 0x%p\r\n", Hooked_hv_launch);
+
+    }
+
+    else {
+
+        gST->ConOut->SetAttribute(gST->ConOut, EFI_RED);
+        Print(L"hvloader!hv_launch Signature out of dated\\n");
+        return gBS->ExitBootServices(ImageHandle, MapKey);
+
+    }
+
+    return gBS->ExitBootServices(ImageHandle, MapKey);
+}
 
 
 
@@ -471,7 +491,7 @@ ConvertImageMemoryType(
 {
     EFI_LOADED_IMAGE_PROTOCOL* LoadedImage;
     EFI_STATUS status;
-    
+
     gBS->HandleProtocol(
         ImageHandle,
         &gEfiLoadedImageProtocolGuid,
@@ -485,14 +505,14 @@ ConvertImageMemoryType(
     UINTN Pages = EFI_SIZE_TO_PAGES(ImageSize);
 
     status = gBS->AllocatePages(
-    Type,
-    MemoryType,
-    Pages,
-    &g_relocated_DxeBase
-);
+        Type,
+        MemoryType,
+        Pages,
+        &g_relocated_DxeBase
+    );
 
-if (EFI_ERROR(status))
-    return status;
+    if (EFI_ERROR(status))
+        return status;
 
     gBS->CopyMem(
         (VOID*)(UINTN)g_relocated_DxeBase,
@@ -509,9 +529,6 @@ if (EFI_ERROR(status))
     return status;
 }
 
-
-
-
 EFI_STATUS
 EFIAPI
 callback(
@@ -522,9 +539,10 @@ callback(
 
     OrgLoadImage = gBS->LoadImage;
     gBS->LoadImage = HookedLoadImage;
+    OrgExitBootServices = gBS->ExitBootServices;
+    gBS->ExitBootServices = HookedExitBootServices;
     return EFI_SUCCESS;
 }
-
 
 
 EFI_STATUS
