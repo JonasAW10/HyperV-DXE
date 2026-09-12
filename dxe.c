@@ -483,19 +483,16 @@ ConvertImageMemoryType(
     UINTN ImageSize = LoadedImage->ImageSize;
     g_ImageSize = ImageSize;
     UINTN Pages = EFI_SIZE_TO_PAGES(ImageSize);
-    EFI_PHYSICAL_ADDRESS NewBase;
 
     status = gBS->AllocatePages(
     Type,
     MemoryType,
     Pages,
-    &NewBase
+    &g_relocated_DxeBase
 );
 
 if (EFI_ERROR(status))
     return status;
-    g_relocated_DxeBase = NewBase;
-
 
     gBS->CopyMem(
         (VOID*)(UINTN)NewBase,
@@ -505,7 +502,7 @@ if (EFI_ERROR(status))
 
     UINTN Offset = (UINT8*)Callback - (UINT8*)ImageBase;
     IMAGE_CALLBACK NewCallback =
-        (IMAGE_CALLBACK)((UINT8*)(UINTN)NewBase + Offset);
+        (IMAGE_CALLBACK)((UINT8*)(UINTN)g_relocated_DxeBase + Offset);
 
     status = NewCallback(ImageHandle, gST);
 
