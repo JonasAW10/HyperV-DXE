@@ -491,7 +491,9 @@ ConvertImageMemoryType(
         &gEfiLoadedImageProtocolGuid,
         (VOID**)&LoadedImage
     );
-
+    
+    if (EFI_ERROR(status))
+        return status;
 
     VOID* ImageBase = LoadedImage->ImageBase;
     UINTN ImageSize = LoadedImage->ImageSize;
