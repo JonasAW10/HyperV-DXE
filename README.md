@@ -2,6 +2,10 @@
 # This is not a fully working, but just an example how you access hv_launch with hooks.
 By accessing hv_lauch from dxe driver, you can potentially, change the hypervisor setup, without detection from AC.
 
+# It's not made for being booted with boox64.efi methode.
+
+# Flash it to your motherboard
+
 Windows seperate VMX ROOT AND VMX GUEST by EPT PAGING.
 ![Screenshot](image0-8.webp)
 
