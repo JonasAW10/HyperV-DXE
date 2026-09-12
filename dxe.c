@@ -495,7 +495,7 @@ if (EFI_ERROR(status))
     return status;
 
     gBS->CopyMem(
-        (VOID*)(UINTN)NewBase,
+        (VOID*)(UINTN)g_relocated_DxeBase,
         ImageBase,
         ImageSize
     );
