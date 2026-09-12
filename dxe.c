@@ -261,8 +261,6 @@ VOID __fastcall Hooked_hv_launch(
 }
 
 
-
-
 STATIC
 UINT64
 HookedBlLdrLoadImage(
@@ -335,10 +333,6 @@ HookedBlLdrLoadImage(
     return Status;
 
 }
-
-
-
-
 
 
 STATIC
