@@ -11,12 +11,12 @@
 
 #define HOOK_SIZE 12
 
-typedef uint32_t ULONG;
-typedef uint16_t USHORT;
+
+
 typedef struct _UNICODE_STRING
 {
-    USHORT Length;
-    USHORT MaximumLength;
+    UINT16 Length;
+    UINT16 MaximumLength;
     CHAR16* Buffer;
 } UNICODE_STRING, * PUNICODE_STRING;
 
@@ -24,16 +24,16 @@ typedef struct _KLDR_DATA_TABLE_ENTRY
 {
     LIST_ENTRY InLoadOrderLinks;          // 0x00
     VOID* ExceptionTable;                 // 0x10
-    ULONG ExceptionTableSize;             // 0x18
+    UINT32 ExceptionTableSize;             // 0x18
     VOID* GpValue;                        // 0x20
     VOID* NonPagedDebugInfo;              // 0x28
     VOID* DllBase;                        // 0x30
     VOID* EntryPoint;                     // 0x38
-    ULONG SizeOfImage;                    // 0x40
+    UINT32 SizeOfImage;                    // 0x40
     UNICODE_STRING FullDllName;           // 0x48
     UNICODE_STRING BaseDllName;           // 0x58
-    ULONG Flags;                          // 0x68
-    USHORT LoadCount;                     // 0x6C
+    UINT32 Flags;                          // 0x68
+    UINT16 LoadCount;                     // 0x6C
 } KLDR_DATA_TABLE_ENTRY, * PKLDR_DATA_TABLE_ENTRY;
 
 typedef PKLDR_DATA_TABLE_ENTRY* PPKLDR_DATA_TABLE_ENTRY;
@@ -85,13 +85,13 @@ typedef EFI_STATUS(EFIAPI* IMAGE_CALLBACK)(
 // Update the signature
 
 // C:\windows\system32\hvloader.dll
-static const char* g_hv_launch_signature =
+STATIC  const char* g_hv_launch_signature =
 "48 53 55 56 57 41 54 41"
 "55 41 56 41 57 48 83 ec"
 "08 48 89 25";
 
 // C:\windows\system32\winload.efi
-static const char* g_BlLdrLoadImage_signature =
+STATIC  const char* g_BlLdrLoadImage_signature =
 "48 8b c4 48 89 58 08 48"
 "89 70 10 48 89 78 18 55"
 "48 8d 68 f1 48 81 ec c0"
@@ -99,25 +99,24 @@ static const char* g_BlLdrLoadImage_signature =
 "00 49 8b c1 48 8d 4d d7";
 
 // SYSTEM partition: \EFI\Microsoft\Boot\bootmgfw.efi
-static const char* g_ImgArchStartBootApplication_signature =
+STATIC  const char* g_ImgArchStartBootApplication_signature =
 "48 8b c4 48 89 58 20 44 89 40 18 48 89 50 10 48"
 "89 48 08 55 56 57 41 54 41 55 41 56 41 57 48 8d"
 "68 a9 48 81 ec c0 00 00";
 
 
-EFI_PHYSICAL_ADDRESS g_relocated_DxeBase;
-UINTN g_ImageSize;
+STATIC EFI_PHYSICAL_ADDRESS g_relocated_DxeBase;
+STATIC UINTN g_ImageSize;
 
 
-VOID* g_hv_launch_addr = NULL;
-VOID* g_ImgArchStartBootApplication_addr = NULL;
-VOID* g_BlLdrLoadImage_addr = NULL;
-
-UINT8 g_backup_ImgArchStartBootApplication[HOOK_SIZE];
-UINT8 g_backup_BlLdrLoadImage[HOOK_SIZE];
-UINT8 g_backup_hv_launch[HOOK_SIZE];
-EFI_IMAGE_LOAD g_OriginalLoadImage;
-EFI_EXIT_BOOT_SERVICES g_OriginalExitBootServices;
+STATIC VOID* g_hv_launch_addr = NULL;
+STATIC VOID* g_ImgArchStartBootApplication_addr = NULL;
+STATIC VOID* g_BlLdrLoadImage_addr = NULL;
+STATIC UINT8 g_backup_ImgArchStartBootApplication[HOOK_SIZE];
+STATIC UINT8 g_backup_BlLdrLoadImage[HOOK_SIZE];
+STATIC UINT8 g_backup_hv_launch[HOOK_SIZE];
+STATIC EFI_IMAGE_LOAD g_OriginalLoadImage;
+STATIC EFI_EXIT_BOOT_SERVICES g_OriginalExitBootServices;
 STATIC BOOLEAN g_WP;
 
 
@@ -142,7 +141,9 @@ void RestoreWriteProtect(void)
         AsmWriteCr0(AsmReadCr0() | BIT16);
 }
 
-void remove_hook(void* target, UINT8 backup[12]) {
+STATIC
+
+    void remove_hook(void* target, UINT8 backup[12]) {
     DisableWriteProtect();
     UINT8* dst = (UINT8*)target;
     for (int i = 0; i < 12; i++) {
@@ -150,6 +151,8 @@ void remove_hook(void* target, UINT8 backup[12]) {
     }
     RestoreWriteProtect();
 }
+
+STATIC 
 
 void hook_jmp64_indirect(void* target, void* hook, uint8_t backup[12])
 {
@@ -174,7 +177,7 @@ void hook_jmp64_indirect(void* target, void* hook, uint8_t backup[12])
 }
 
 
-static uint8_t hex_to_byte(const char* s)
+STATIC  uint8_t hex_to_byte(const char* s)
 {
     uint8_t value = 0;
 
@@ -192,6 +195,7 @@ static uint8_t hex_to_byte(const char* s)
     return value;
 }
 
+STATIC
 void* signature_scan(uintptr_t start, uintptr_t end, const char* pattern)
 {
     for (uintptr_t addr = start; addr < end; addr++) {
@@ -369,7 +373,7 @@ HookedImgArchStartBootApplication(
 
 
 
-
+STATIC
 EFI_STATUS
 EFIAPI
 HookedLoadImage(
@@ -420,7 +424,7 @@ HookedLoadImage(
 }
 
 
-
+STATIC
 EFI_STATUS
 EFIAPI
 HookedExitBootServices(EFI_HANDLE ImageHandle, UINTN MapKey) {
@@ -475,7 +479,7 @@ HookedExitBootServices(EFI_HANDLE ImageHandle, UINTN MapKey) {
 }
 
 
-
+STATIC
 EFI_STATUS
 EFIAPI
 ConvertImageMemoryType(
@@ -527,6 +531,7 @@ ConvertImageMemoryType(
     return status;
 }
 
+STATIC
 EFI_STATUS
 EFIAPI
 callback(
