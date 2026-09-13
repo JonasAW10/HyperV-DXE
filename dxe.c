@@ -409,7 +409,6 @@ HookedLoadImage(
                 hook_jmp64_indirect((void*)ImgArchStartBootApplication_addr, (void*)HookedImgArchStartBootApplication, backup_ImgArchStartBootApplication);
             }
         }
-        gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
         gBS->FreePool(Path);
     }
 
@@ -468,7 +467,6 @@ HookedExitBootServices(EFI_HANDLE ImageHandle, UINTN MapKey) {
         return gBS->ExitBootServices(ImageHandle, MapKey);
 
     }
-
     return gBS->ExitBootServices(ImageHandle, MapKey);
 }
 
