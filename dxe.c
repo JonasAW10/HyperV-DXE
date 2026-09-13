@@ -685,7 +685,7 @@ callback(
 
 EFI_STATUS
 EFIAPI
-L0IntelEntryPoint(
+DxeEntryPoint(
     IN EFI_HANDLE         ImageHandle,
     IN EFI_SYSTEM_TABLE* SystemTable
 )
