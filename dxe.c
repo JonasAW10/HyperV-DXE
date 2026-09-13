@@ -558,8 +558,7 @@ DxeEntryPoint(
 
     if (ImageHandle == NULL || SystemTable == NULL)
         return EFI_INVALID_PARAMETER;
-
-    // Relocate Our Image in runtime memory
+    
 
     EFI_STATUS Status = ConvertImageMemoryType(
         AllocateAnyPages,
