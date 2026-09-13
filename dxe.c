@@ -105,25 +105,24 @@ STATIC  const char* g_ImgArchStartBootApplication_signature =
 "68 a9 48 81 ec c0 00 00";
 
 
-STATIC EFI_PHYSICAL_ADDRESS g_relocated_DxeBase;
-STATIC UINTN g_ImageSize;
+EFI_PHYSICAL_ADDRESS g_relocated_DxeBase;
+UINTN g_ImageSize;
 
-
-STATIC VOID* g_hv_launch_addr = NULL;
-STATIC VOID* g_ImgArchStartBootApplication_addr = NULL;
-STATIC VOID* g_BlLdrLoadImage_addr = NULL;
-STATIC UINT8 g_backup_ImgArchStartBootApplication[HOOK_SIZE];
-STATIC UINT8 g_backup_BlLdrLoadImage[HOOK_SIZE];
-STATIC UINT8 g_backup_hv_launch[HOOK_SIZE];
-STATIC EFI_IMAGE_LOAD g_OriginalLoadImage;
-STATIC EFI_EXIT_BOOT_SERVICES g_OriginalExitBootServices;
+VOID* g_hv_launch_addr = NULL;
+VOID* g_ImgArchStartBootApplication_addr = NULL;
+VOID* g_BlLdrLoadImage_addr = NULL;
+UINT8 g_backup_ImgArchStartBootApplication[HOOK_SIZE];
+UINT8 g_backup_BlLdrLoadImage[HOOK_SIZE];
+UINT8 g_backup_hv_launch[HOOK_SIZE];
+EFI_IMAGE_LOAD g_OriginalLoadImage;
+EFI_EXIT_BOOT_SERVICES g_OriginalExitBootServices;
 STATIC BOOLEAN g_WP;
 
 
 
 
 
-STATIC
+
 void DisableWriteProtect(void)
 {
     UINT64 Cr0 = AsmReadCr0();
