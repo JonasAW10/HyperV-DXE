@@ -486,7 +486,7 @@ ConvertImageMemoryType(
     EFI_LOADED_IMAGE_PROTOCOL* LoadedImage;
     EFI_STATUS status;
 
-    gBS->HandleProtocol(
+    status = gBS->HandleProtocol(
         ImageHandle,
         &gEfiLoadedImageProtocolGuid,
         (VOID**)&LoadedImage
