@@ -8,6 +8,7 @@
 #include <Protocol/MpService.h>
 #include <Register/Intel/Msr.h>
 #include <Library/BaseMemoryLib.h>
+#include <Library/BaseLib.h>
 
 #define HOOK_SIZE 12
 
@@ -37,6 +38,13 @@ typedef struct _KLDR_DATA_TABLE_ENTRY
 } KLDR_DATA_TABLE_ENTRY, * PKLDR_DATA_TABLE_ENTRY;
 
 typedef PKLDR_DATA_TABLE_ENTRY* PPKLDR_DATA_TABLE_ENTRY;
+typedef wchar_t WCHAR;
+
+
+typedef uint64_t(*OslFwpKernelSetupPhase1_t)(
+    void* _LOADER_PARAMETER_BLOCK
+    );
+
 
 typedef void(__fastcall* hv_launch_t)(
     int64_t  hyperv_cr3,
@@ -48,9 +56,9 @@ typedef void(__fastcall* hv_launch_t)(
 
 typedef uint64_t(*BlLdrLoadImage_t)(
     int32_t  Unknown1,
-    CHAR16*  ModulePath,
-    CHAR16*  ModuleName,
-    void*    Unknown4,
+    CHAR16* ModulePath,
+    CHAR16* ModuleName,
+    void* Unknown4,
     int64_t  Unknown5,
     int32_t  Unknown6,
     int32_t  Unknown7,
@@ -105,22 +113,109 @@ STATIC  const char* g_ImgArchStartBootApplication_signature =
 "68 a9 48 81 ec c0 00 00";
 
 
+STATIC const char* g_OslFwpKernelSetupPhase1_signature =
+"48 89 4c 24 08 55 53 56"
+"57 41 54 41 55 41 56 41"
+"57 48 8d 6c 24 e1 48 81"
+"ec 98 00 00 00 45 33 ed";
+
 EFI_PHYSICAL_ADDRESS g_relocated_DxeBase;
 UINTN g_ImageSize;
 
 VOID* g_hv_launch_addr = NULL;
 VOID* g_ImgArchStartBootApplication_addr = NULL;
 VOID* g_BlLdrLoadImage_addr = NULL;
+VOID* g_OslFwpKernelSetupPhase1_addr = NULL;
+UINT8 g_backup_OslFwpKernelSetupPhase1[HOOK_SIZE];
 UINT8 g_backup_ImgArchStartBootApplication[HOOK_SIZE];
 UINT8 g_backup_BlLdrLoadImage[HOOK_SIZE];
 UINT8 g_backup_hv_launch[HOOK_SIZE];
 EFI_IMAGE_LOAD g_OriginalLoadImage;
 EFI_EXIT_BOOT_SERVICES g_OriginalExitBootServices;
 STATIC BOOLEAN g_WP;
+UINT64 g_ntoskrnl_base_va;
+EFI_PHYSICAL_ADDRESS g_ntoskrnl_base_pa;
+
+// only working if using identity mapping
+uint64_t va2phy(uint64_t cr3, uint64_t virtual_address) {
+    const uint64_t pml4_offset_mask = 0x1FF;
+    const uint64_t pdpte_offset_mask = 0x1FF;
+    const uint64_t pde_offset_mask = 0x1FF;
+    const uint64_t pte_offset_mask = 0x1FF;
+    const uint64_t pfn_offset_mask = 0xFFF;
+    const uint64_t pfn_mask = 0xFFFFFFFFF000;
+    uint64_t pml4_offset = (virtual_address >> 39) & pml4_offset_mask;
+    uint64_t pdpte_offset = (virtual_address >> 30) & pdpte_offset_mask;
+    uint64_t pde_offset = (virtual_address >> 21) & pde_offset_mask;
+    uint64_t pte_offset = (virtual_address >> 12) & pte_offset_mask;
+    uint64_t page_offset = virtual_address & pfn_offset_mask;
+    uint64_t pml4_base = cr3 & pfn_mask;
+    uint64_t pml4_entry_addr = pml4_base + (pml4_offset * 8);
+    uint64_t pdpt_base = (*(uint64_t*)pml4_entry_addr) & pfn_mask;
+    uint64_t pdpt_entry_addr = pdpt_base + (pdpte_offset * 8);
+    uint64_t pd_base = (*(uint64_t*)pdpt_entry_addr) & pfn_mask;
+    uint64_t pd_entry_addr = pd_base + (pde_offset * 8);
+    uint64_t pt_base = (*(uint64_t*)pd_entry_addr) & pfn_mask;
+    uint64_t pt_entry_addr = pt_base + (pte_offset * 8);
+    uint64_t page_base = (*(uint64_t*)pt_entry_addr) & pfn_mask;
+    uint64_t physical_address = page_base + page_offset;
+    return physical_address;
+}
 
 
+int wcsicmp_kernel(const WCHAR* s1, const WCHAR* s2)
+{
+    while (*s1 && *s2)
+    {
+        WCHAR c1 = (*s1 >= L'A' && *s1 <= L'Z') ? *s1 + 32 : *s1;
+        WCHAR c2 = (*s2 >= L'A' && *s2 <= L'Z') ? *s2 + 32 : *s2;
+
+        if (c1 != c2)
+            return (int)(c1 - c2);
+
+        s1++;
+        s2++;
+    }
+
+    return (int)(*s1 - *s2);
+}
 
 
+uint64_t get_module(uint64_t list_entry, const wchar_t* module)
+{
+    uint64_t current_entry = *(uint64_t*)list_entry;
+
+    while (current_entry != list_entry)
+    {
+        uint64_t module_name_addr = *(uint64_t*)((uint8_t*)current_entry + 0x58 /* ->BaseDllName */ + 0x8 /* ->Buffer */);
+
+        if (module_name_addr)
+        {
+            if (wcsicmp_kernel((wchar_t*)module_name_addr, module) == 0)
+            {
+                return current_entry;
+            }
+        }
+
+        current_entry = *(uint64_t*)current_entry;
+    }
+
+    return 0;
+}
+
+uint64_t get_module_base(uint64_t list_entry, const wchar_t* module)
+{
+    uint64_t current_entry = get_module(list_entry, module);
+
+    if (!current_entry)
+    {
+        return 0;
+    }
+
+    uint64_t module_base = *(uint64_t*)(uint8_t*)(current_entry + 0x30 /* ->DllBase */);
+
+    return module_base;
+}
 
 
 void DisableWriteProtect(void)
@@ -142,7 +237,7 @@ void RestoreWriteProtect(void)
 
 STATIC
 
-    void remove_hook(void* target, UINT8 backup[12]) {
+void remove_hook(void* target, UINT8 backup[12]) {
     DisableWriteProtect();
     UINT8* dst = (UINT8*)target;
     for (int i = 0; i < 12; i++) {
@@ -151,7 +246,7 @@ STATIC
     RestoreWriteProtect();
 }
 
-STATIC 
+STATIC
 
 void hook_jmp64_indirect(void* target, void* hook, uint8_t backup[12])
 {
@@ -243,6 +338,17 @@ void* signature_scan(uintptr_t start, uintptr_t end, const char* pattern)
 }
 
 
+STATIC
+uint64_t
+HookedOslFwpKernelSetupPhase1(void* _LOADER_PARAMETER_BLOCK) {
+
+    uint8_t* lpb_bytes = (uint8_t*)_LOADER_PARAMETER_BLOCK;
+    g_ntoskrnl_base_va = get_module_base((uint64_t)(lpb_bytes + 0x10), L"ntoskrnl.exe");
+    g_ntoskrnl_base_pa = va2phy(AsmReadCr3(), g_ntoskrnl_base_va);
+    remove_hook(g_OslFwpKernelSetupPhase1_addr, g_backup_OslFwpKernelSetupPhase1);
+    OslFwpKernelSetupPhase1_t OslFwpKernelSetupPhase1 = (OslFwpKernelSetupPhase1_t)g_OslFwpKernelSetupPhase1_addr;
+    return OslFwpKernelSetupPhase1(_LOADER_PARAMETER_BLOCK);
+}
 
 STATIC
 VOID __fastcall Hooked_hv_launch(
@@ -364,6 +470,15 @@ HookedImgArchStartBootApplication(
         hook_jmp64_indirect((void*)g_BlLdrLoadImage_addr, (void*)HookedBlLdrLoadImage, g_backup_BlLdrLoadImage);
     }
 
+
+    g_OslFwpKernelSetupPhase1_addr = signature_scan(start, end, g_OslFwpKernelSetupPhase1_signature);
+
+    if (g_OslFwpKernelSetupPhase1_addr) {
+
+        hook_jmp64_indirect((void*)g_OslFwpKernelSetupPhase1_addr, (void*)HookedOslFwpKernelSetupPhase1, g_backup_OslFwpKernelSetupPhase1);
+
+    }
+
     remove_hook(g_ImgArchStartBootApplication_addr, g_backup_ImgArchStartBootApplication);
     ImgArchStartBootApplication_t ImgArchStartBootApplication = (ImgArchStartBootApplication_t)g_ImgArchStartBootApplication_addr;
     EFI_STATUS Status = ImgArchStartBootApplication(AppEntry, ImageBase, ImageSize, BootOption, ReturnArgs);
@@ -474,6 +589,27 @@ HookedExitBootServices(EFI_HANDLE ImageHandle, UINTN MapKey) {
         return gBS->ExitBootServices(ImageHandle, MapKey);
 
     }
+
+    if (g_OslFwpKernelSetupPhase1_addr) {
+
+
+        Print(L"winload!OslFwpKernelSetupPhase1: 0x%p\r\n", g_OslFwpKernelSetupPhase1_addr);
+        Print(L"hooking winload!OslFwpKernelSetupPhase1 --> HookedOslFwpKernelSetupPhase1: 0x%p\r\n", HookedOslFwpKernelSetupPhase1);
+
+    }
+
+    else {
+
+        gST->ConOut->SetAttribute(gST->ConOut, EFI_RED);
+        Print(L"winload!OslFwpKernelSetupPhase1 Signature out of dated\\n");
+        return gBS->ExitBootServices(ImageHandle, MapKey);
+
+    }
+
+
+    Print(L"ntoskrnl.exe:\r\n");
+    Print(L"  VA = 0x%016lx\r\n", g_ntoskrnl_base_va);
+    Print(L"  PA = 0x%016lx\r\n", g_ntoskrnl_base_pa);
     return gBS->ExitBootServices(ImageHandle, MapKey);
 }
 
@@ -549,7 +685,7 @@ callback(
 
 EFI_STATUS
 EFIAPI
-DxeEntryPoint(
+L0IntelEntryPoint(
     IN EFI_HANDLE         ImageHandle,
     IN EFI_SYSTEM_TABLE* SystemTable
 )
@@ -557,7 +693,7 @@ DxeEntryPoint(
 
     if (ImageHandle == NULL || SystemTable == NULL)
         return EFI_INVALID_PARAMETER;
-    
+
 
     EFI_STATUS Status = ConvertImageMemoryType(
         AllocateAnyPages,
