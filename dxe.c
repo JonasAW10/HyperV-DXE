@@ -39,31 +39,31 @@ typedef struct _KLDR_DATA_TABLE_ENTRY
 typedef PKLDR_DATA_TABLE_ENTRY* PPKLDR_DATA_TABLE_ENTRY;
 
 typedef void(__fastcall* hv_launch_t)(
-    int64_t hyperv_cr3,
-    int64_t hyperv_entry_point,
-    int64_t entry_point_gadget,
+    int64_t  hyperv_cr3,
+    int64_t  hyperv_entry_point,
+    int64_t  entry_point_gadget,
     uint64_t guest_kernel_cr3
     );
 
 
 typedef uint64_t(*BlLdrLoadImage_t)(
-    int32_t  arg1,
-    CHAR16* ModulePath,
-    CHAR16* ModuleName,
-    void* arg4,
-    int64_t  arg5,
-    int32_t  arg6,
-    int32_t  arg7,
-    LIST_ENTRY* arg8,
-    PPKLDR_DATA_TABLE_ENTRY  arg9,
-    int64_t  arg10,
-    int32_t  arg11,
-    int32_t  arg12,
-    int32_t  arg13,
-    int32_t  arg14,
-    int32_t  arg15,
-    int64_t  arg16,
-    int64_t  arg17
+    int32_t  Unknown1,
+    CHAR16*  ModulePath,
+    CHAR16*  ModuleName,
+    void*    Unknown4,
+    int64_t  Unknown5,
+    int32_t  Unknown6,
+    int32_t  Unknown7,
+    LIST_ENTRY* LoadedModuleList,
+    PPKLDR_DATA_TABLE_ENTRY  LoadedModuleEntry,
+    int64_t  Unknown10,
+    int32_t  Unknown11,
+    int32_t  Unknown12,
+    int32_t  Unknown13,
+    int32_t  Unknown14,
+    int32_t  Unknown15,
+    int64_t  Unknown16,
+    int64_t  Unknown17
     );
 
 
@@ -85,10 +85,13 @@ typedef EFI_STATUS(EFIAPI* IMAGE_CALLBACK)(
 // Update the signature
 
 // C:\windows\system32\hvloader.dll
-static const char* hv_launch_signature = "48 53 55 56 57 41 54 41 55 41 56 41 57 48 83 ec 08 48 89 25";
+static const char* g_hv_launch_signature =
+"48 53 55 56 57 41 54 41"
+"55 41 56 41 57 48 83 ec"
+"08 48 89 25";
 
 // C:\windows\system32\winload.efi
-static const char* BlLdrLoadImage_signature =
+static const char* g_BlLdrLoadImage_signature =
 "48 8b c4 48 89 58 08 48"
 "89 70 10 48 89 78 18 55"
 "48 8d 68 f1 48 81 ec c0"
@@ -96,7 +99,7 @@ static const char* BlLdrLoadImage_signature =
 "00 49 8b c1 48 8d 4d d7";
 
 // SYSTEM partition: \EFI\Microsoft\Boot\bootmgfw.efi
-static const char* ImgArchStartBootApplication_signature =
+static const char* g_ImgArchStartBootApplication_signature =
 "48 8b c4 48 89 58 20 44 89 40 18 48 89 50 10 48"
 "89 48 08 55 56 57 41 54 41 55 41 56 41 57 48 8d"
 "68 a9 48 81 ec c0 00 00";
@@ -106,16 +109,19 @@ EFI_PHYSICAL_ADDRESS g_relocated_DxeBase;
 UINTN g_ImageSize;
 
 
-VOID* hv_launch_addr = NULL;
-VOID* ImgArchStartBootApplication_addr = NULL;
-VOID* BlLdrLoadImage_addr = NULL;
+VOID* g_hv_launch_addr = NULL;
+VOID* g_ImgArchStartBootApplication_addr = NULL;
+VOID* g_BlLdrLoadImage_addr = NULL;
 
-UINT8 backup_ImgArchStartBootApplication[HOOK_SIZE];
-UINT8 backup_BlLdrLoadImage[HOOK_SIZE];
-UINT8 backup_hv_launch[HOOK_SIZE];
-EFI_IMAGE_LOAD OrgLoadImage;
-EFI_EXIT_BOOT_SERVICES OrgExitBootServices;
+UINT8 g_backup_ImgArchStartBootApplication[HOOK_SIZE];
+UINT8 g_backup_BlLdrLoadImage[HOOK_SIZE];
+UINT8 g_backup_hv_launch[HOOK_SIZE];
+EFI_IMAGE_LOAD g_OriginalLoadImage;
+EFI_EXIT_BOOT_SERVICES g_OriginalExitBootServices;
 STATIC BOOLEAN g_WP;
+
+
+
 
 
 STATIC
@@ -243,9 +249,9 @@ VOID __fastcall Hooked_hv_launch(
     uint64_t guest_kernel_cr3
 )
 {
-    hv_launch_t hv_launch = (hv_launch_t)hv_launch_addr;
+    hv_launch_t hv_launch = (hv_launch_t)g_hv_launch_addr;
 
-    remove_hook(hv_launch_addr, backup_hv_launch);
+    remove_hook(g_hv_launch_addr, g_backup_hv_launch);
 
     // TODO: Scan Hyper-V CR3
     // TODO: Find non-present PML4 entry
@@ -264,53 +270,53 @@ VOID __fastcall Hooked_hv_launch(
 STATIC
 UINT64
 HookedBlLdrLoadImage(
-    int32_t  arg1,
+    int32_t  Unknown1,
     CHAR16* ModulePath,
     CHAR16* ModuleName,
-    void* arg4,
-    int64_t  arg5,
-    int32_t  arg6,
-    int32_t  arg7,
-    LIST_ENTRY* arg8,
-    PPKLDR_DATA_TABLE_ENTRY  arg9,
-    int64_t  arg10,
-    int32_t  arg11,
-    int32_t  arg12,
-    int32_t  arg13,
-    int32_t  arg14,
-    int32_t  arg15,
-    int64_t  arg16,
-    int64_t  arg17
+    void* Unknown4,
+    int64_t  Unknown5,
+    int32_t  Unknown6,
+    int32_t  Unknown7,
+    LIST_ENTRY* LoadedModuleList,
+    PPKLDR_DATA_TABLE_ENTRY  LoadedModuleEntry,
+    int64_t                  Unknown10,
+    int32_t  Unknown11,
+    int32_t  Unknown12,
+    int32_t  Unknown13,
+    int32_t  Unknown14,
+    int32_t  Unknown15,
+    int64_t  Unknown16,
+    int64_t  Unknown17
 )
 {
 
-    remove_hook(BlLdrLoadImage_addr, backup_BlLdrLoadImage);
-    BlLdrLoadImage_t BlLdrLoadImage = (BlLdrLoadImage_t)BlLdrLoadImage_addr;
+    remove_hook(g_BlLdrLoadImage_addr, g_backup_BlLdrLoadImage);
+    BlLdrLoadImage_t BlLdrLoadImage = (BlLdrLoadImage_t)g_BlLdrLoadImage_addr;
     EFI_STATUS Status =
         BlLdrLoadImage(
-            arg1,
+            Unknown1,
             ModulePath,
             ModuleName,
-            arg4,
-            arg5,
-            arg6,
-            arg7,
-            arg8,
-            arg9,
-            arg10,
-            arg11,
-            arg12,
-            arg13,
-            arg14,
-            arg15,
-            arg16,
-            arg17
+            Unknown4,
+            Unknown5,
+            Unknown6,
+            Unknown7,
+            LoadedModuleList,
+            LoadedModuleEntry,
+            Unknown10,
+            Unknown11,
+            Unknown12,
+            Unknown13,
+            Unknown14,
+            Unknown15,
+            Unknown16,
+            Unknown17
         );
 
-    if (arg9)
+    if (LoadedModuleEntry)
     {
         PKLDR_DATA_TABLE_ENTRY TableEntry =
-            *(PKLDR_DATA_TABLE_ENTRY*)arg9;
+            *(PKLDR_DATA_TABLE_ENTRY*)LoadedModuleEntry;
 
         if (TableEntry &&
             TableEntry->BaseDllName.Buffer &&
@@ -318,18 +324,18 @@ HookedBlLdrLoadImage(
         {
             uintptr_t start = (uintptr_t)TableEntry->DllBase;
             uintptr_t end = start + TableEntry->SizeOfImage;
-            hv_launch_addr = signature_scan(
+            g_hv_launch_addr = signature_scan(
                 start,
                 end,
-                hv_launch_signature
+                g_hv_launch_signature
             );
 
-            if (hv_launch_addr) {
-                hook_jmp64_indirect((void*)hv_launch_addr, (void*)Hooked_hv_launch, backup_hv_launch);
+            if (g_hv_launch_addr) {
+                hook_jmp64_indirect((void*)g_hv_launch_addr, (void*)Hooked_hv_launch, g_backup_hv_launch);
             }
         }
     }
-    hook_jmp64_indirect((void*)BlLdrLoadImage_addr, (void*)HookedBlLdrLoadImage, backup_BlLdrLoadImage);
+    hook_jmp64_indirect((void*)g_BlLdrLoadImage_addr, (void*)HookedBlLdrLoadImage, g_backup_BlLdrLoadImage);
     return Status;
 
 }
@@ -349,14 +355,14 @@ HookedImgArchStartBootApplication(
 
     uintptr_t start = (uintptr_t)ImageBase;
     uintptr_t end = (uintptr_t)ImageBase + ImageSize;
-    BlLdrLoadImage_addr = signature_scan(start, end, BlLdrLoadImage_signature);
+    g_BlLdrLoadImage_addr = signature_scan(start, end, g_BlLdrLoadImage_signature);
 
-    if (BlLdrLoadImage_addr) {
-        hook_jmp64_indirect((void*)BlLdrLoadImage_addr, (void*)HookedBlLdrLoadImage, backup_BlLdrLoadImage);
+    if (g_BlLdrLoadImage_addr) {
+        hook_jmp64_indirect((void*)g_BlLdrLoadImage_addr, (void*)HookedBlLdrLoadImage, g_backup_BlLdrLoadImage);
     }
 
-    remove_hook(ImgArchStartBootApplication_addr, backup_ImgArchStartBootApplication);
-    ImgArchStartBootApplication_t ImgArchStartBootApplication = (ImgArchStartBootApplication_t)ImgArchStartBootApplication_addr;
+    remove_hook(g_ImgArchStartBootApplication_addr, g_backup_ImgArchStartBootApplication);
+    ImgArchStartBootApplication_t ImgArchStartBootApplication = (ImgArchStartBootApplication_t)g_ImgArchStartBootApplication_addr;
     EFI_STATUS Status = ImgArchStartBootApplication(AppEntry, ImageBase, ImageSize, BootOption, ReturnArgs);
     return Status;
 }
@@ -379,7 +385,7 @@ HookedLoadImage(
     EFI_LOADED_IMAGE_PROTOCOL* LoadedImage = NULL;
     CHAR16* Path = NULL;
 
-    Status = OrgLoadImage(
+    Status = g_OriginalLoadImage(
         BootPolicy,
         ParentImageHandle,
         DevicePath,
@@ -402,11 +408,9 @@ HookedLoadImage(
 
             uintptr_t start = (uintptr_t)LoadedImage->ImageBase;
             uintptr_t end = start + LoadedImage->ImageSize;
-            ImgArchStartBootApplication_addr = signature_scan(start, end,
-                ImgArchStartBootApplication_signature);
-
-            if (ImgArchStartBootApplication_addr) {
-                hook_jmp64_indirect((void*)ImgArchStartBootApplication_addr, (void*)HookedImgArchStartBootApplication, backup_ImgArchStartBootApplication);
+            g_ImgArchStartBootApplication_addr = signature_scan(start, end, g_ImgArchStartBootApplication_signature);
+            if (g_ImgArchStartBootApplication_addr) {
+                hook_jmp64_indirect((void*)g_ImgArchStartBootApplication_addr, (void*)HookedImgArchStartBootApplication, g_backup_ImgArchStartBootApplication);
             }
         }
         gBS->FreePool(Path);
@@ -421,25 +425,25 @@ EFI_STATUS
 EFIAPI
 HookedExitBootServices(EFI_HANDLE ImageHandle, UINTN MapKey) {
 
-    gBS->ExitBootServices = OrgExitBootServices;
+    gBS->ExitBootServices = g_OriginalExitBootServices;
 
     Print(L"\r\n\r\n");
     Print(L"========================================\r\n");
     Print(L"          Windows loading...\r\n");
     Print(L"========================================\r\n");
     Print(L"\r\n");
-    if(ImgArchStartBootApplication_addr){
-        Print(L"bootmgfw!ImgArchStartBootApplication: 0x%p\r\n", ImgArchStartBootApplication_addr);
+    if (g_ImgArchStartBootApplication_addr) {
+        Print(L"bootmgfw!ImgArchStartBootApplication: 0x%p\r\n", g_ImgArchStartBootApplication_addr);
         Print(L"hooking bootmgfw!ImgArchStartBootApplication --> HookedImgArchStartBootApplication: 0x%p\r\n", HookedImgArchStartBootApplication);
     }
-    else{
+    else {
         gST->ConOut->SetAttribute(gST->ConOut, EFI_RED);
         Print(L"bootmgfw!ImgArchStartBootApplication Signature out of dated\\n");
         return gBS->ExitBootServices(ImageHandle, MapKey);
     }
 
-    if (BlLdrLoadImage_addr) {
-        Print(L"winload!BlLdrLoadImage: 0x%p\r\n", BlLdrLoadImage_addr);
+    if (g_BlLdrLoadImage_addr) {
+        Print(L"winload!BlLdrLoadImage: 0x%p\r\n", g_BlLdrLoadImage_addr);
         Print(L"hooking winload!BlLdrLoadImage --> HookedBlLdrLoadImage: 0x%p\r\n", HookedBlLdrLoadImage);
     }
     else {
@@ -452,10 +456,10 @@ HookedExitBootServices(EFI_HANDLE ImageHandle, UINTN MapKey) {
 
 
 
-    if (hv_launch_addr) {
+    if (g_hv_launch_addr) {
 
 
-        Print(L"hvloader!hv_launch: 0x%p\r\n", hv_launch_addr);
+        Print(L"hvloader!hv_launch: 0x%p\r\n", g_hv_launch_addr);
         Print(L"hooking hvloader!hv_launch --> Hooked_hv_launch: 0x%p\r\n", Hooked_hv_launch);
 
     }
@@ -489,7 +493,7 @@ ConvertImageMemoryType(
         &gEfiLoadedImageProtocolGuid,
         (VOID**)&LoadedImage
     );
-    
+
     if (EFI_ERROR(status))
         return status;
 
@@ -531,9 +535,9 @@ callback(
 )
 {
 
-    OrgLoadImage = gBS->LoadImage;
+    g_OriginalLoadImage = gBS->LoadImage;
     gBS->LoadImage = HookedLoadImage;
-    OrgExitBootServices = gBS->ExitBootServices;
+    g_OriginalExitBootServices = gBS->ExitBootServices;
     gBS->ExitBootServices = HookedExitBootServices;
     return EFI_SUCCESS;
 }
